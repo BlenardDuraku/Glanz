@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Duraku Glanzservice — Linz & Umgebung</title>
+<meta name="description" content="Duraku Glanzservice — Professionelle Fenster- & Glasreinigung in Linz & Umgebung (Fenster, Wintergärten, Büroflächen)." />
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="3" width="20" height="18" rx="2" fill="url(#g)" stroke="#60A5FA" stroke-width="0.8"/>
+            <path d="M6 8L18 4" stroke="#ffffff" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+            <defs>
+              <linearGradient id="g" x1="0" x2="1">
+                <stop offset="0" stop-color="#BFDBFE"/>
+                <stop offset="1" stop-color="#60A5FA"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <div class="company">Duraku Glanzservice</div>
+          <div class="tag">Fensterreinigung — Linz &amp; Umgebung</div>
+        </div>
+      </div>
+
+      <nav class="nav" id="nav">
+        <a href="#services">Leistungen</a>
+        <a href="#about">Über uns</a>
+        <a href="#contact">Kontakt</a>
+        <a href="#legal">Rechtliches</a>
+      </nav>
+
+      <button class="nav-toggle" aria-label="Menü" onclick="document.body.classList.toggle('nav-open')">☰</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div class="hero-inner">
+        <div class="hero-text">
+          <h1>Klare Sicht. Strahlender Glanz.</h1>
+          <p class="lead">Duraku Glanzservice — professionelle Fenster- und Glasreinigung für Privathaushalte und Betriebe in <strong>Linz &amp; Umgebung</strong>. Sauber, zuverlässig und termingerecht.</p>
+          <div class="cta">
+            <a class="btn primary" href="#contact">Jetzt anfragen</a>
+            <a class="btn ghost" href="#services">Unsere Leistungen</a>
+          </div>
+          <ul class="features">
+            <li><strong>Sorgfalt</strong><span>Schonende Reinigung mit geprüften Mitteln</span></li>
+            <li><strong>Flexibel</strong><span>Termine nach Vereinbarung, auch früh/abends</span></li>
+            <li><strong>Transparent</strong><span>Klare Preise, keine Überraschungen</span></li>
+          </ul>
+        </div>
+        <div class="hero-media">
+          <div class="hero-image-wrap">
+            <img src="assets/hero.jpg" alt="Fensterreinigung Duraku Glanzservice" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="services" class="section card-grid">
+      <h2>Unsere Leistungen</h2>
+      <div class="cards">
+        <article class="card">
+          <div class="card-icon" aria-hidden>
+            <svg width="42" height="42" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="#0369a1" stroke-width="1.2"/><path d="M12 3v18" stroke="#0369a1" stroke-width="1"/></svg>
+          </div>
+          <h3>Fensterreinigung</h3>
+          <p>Innen &amp; außen, Rahmenpflege und streifenfreies Finish.</p>
+        </article>
+        <article class="card">
+          <div class="card-icon" aria-hidden>
+            <svg width="42" height="42" viewBox="0 0 24 24" fill="none"><path d="M3 12l9-9 9 9v9H3z" stroke="#0369a1" stroke-width="1.2" fill="none"/></svg>
+          </div>
+          <h3>Wintergärten</h3>
+          <p>Sorgfältige Pflege von Glasdächern und -wänden inkl. Rahmen.</p>
+        </article>
+        <article class="card">
+          <div class="card-icon" aria-hidden>
+            <svg width="42" height="42" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="1" stroke="#0369a1" stroke-width="1.2"/><path d="M7 8h10" stroke="#0369a1" stroke-width="1"/></svg>
+          </div>
+          <h3>Büroreinigung</h3>
+          <p>Fenster &amp; Glasflächen in Geschäftsräumlichkeiten — termingerecht.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="about" class="section">
+      <h2>Über Duraku Glanzservice</h2>
+      <p>Duraku Glanzservice steht für gründliche Fenster- und Glasreinigung in <strong>Linz &amp; Umgebung</strong>. Wir arbeiten mit geprüften Reinigungsmitteln, modernen Geräten und legen großen Wert auf Zuverlässigkeit sowie Umweltverträglichkeit.</p>
+    </section>
+
+    <section id="contact" class="section contact-card">
+      <h2>Anfrage senden</h2>
+      <p>Fülle das Formular aus — wir melden uns rasch mit einem Angebot.</p>
+
+      <form id="contactForm" onsubmit="return sendMail(event)" class="form">
+        <div class="form-grid">
+          <label>Dein Name <input name="name" required /></label>
+          <label>E‑Mail <input name="email" type="email" required /></label>
+          <label>Telefon (optional) <input name="phone" /></label>
+          <label>Leistung
+            <select name="service">
+              <option>Fensterreinigung</option>
+              <option>Wintergärten</option>
+              <option>Büroreinigung</option>
+              <option>Mehrere Leistungen</option>
+            </select>
+          </label>
+          <label class="full">Nachricht / Details <textarea name="message" rows="4" placeholder="Kurz: Was sollen wir reinigen?"></textarea></label>
+        </div>
+
+        <div class="form-foot">
+          <button class="btn primary" type="submit">Anfragen</button>
+          <small class="muted">Ihre Daten werden DSGVO-konform behandelt.</small>
+        </div>
+      </form>
+    </section>
+
+    <section id="legal" class="section legal">
+      <h2>Rechtliches</h2>
+
+      <div class="legal-block">
+        <h3>Impressum</h3>
+        <p><strong>Duraku Glanzservice</strong><br>
+        Inhaber: <strong>Blenard Duraku</strong><br>
+        Adresse: Zenettistraße 10, 4470 Enns<br>
+        E‑Mail: <a href="mailto:duraku-glanz@outlook.com">duraku-glanz@outlook.com</a><br>
+        Tel: 0677 64165633<br>
+        Gewerbe: Reinigung von Gebäuden (GewO), Österreich</p>
+      </div>
+
+      <div class="legal-block">
+        <h3>AGB (Standardversion)</h3>
+        <p><strong>1. Leistungsumfang</strong><br>
+        Duraku Glanzservice führt vereinbarte Reinigungsarbeiten fachgerecht und unter Verwendung geeigneter Reinigungsmittel durch. Sonderwünsche sind schriftlich zu vereinbaren.</p>
+
+        <p><strong>2. Termine und Ausfall</strong><br>
+        Termine werden nach Absprache vereinbart. Bei Verhinderung des Auftragnehmers wird so bald wie möglich Ersatz angeboten. Bei Absage durch den Auftraggeber bei kurzfristigen Terminen behalten wir uns eine Ausfallentschädigung vor.</p>
+
+        <p><strong>3. Preise und Zahlung</strong><br>
+        Preise beruhen auf Vereinbarung. Zahlungen sind innerhalb von 14 Tagen nach Rechnungsstellung ohne Abzug fällig, sofern nicht anders vereinbart.</p>
+
+        <p><strong>4. Haftung</strong><br>
+        Für leichte Fahrlässigkeit haftet Duraku Glanzservice nur bei Verletzung wesentlicher Vertragspflichten. Die Haftung für entgangenen Gewinn, mittelbare Schäden oder Folgeschäden ist ausgeschlossen, soweit gesetzlich zulässig.</p>
+
+        <p><strong>5. Gewährleistung</strong><br>
+        Offensichtliche Mängel sind unverzüglich, spätestens innerhalb von 7 Tagen nach Leistungsausführung, schriftlich anzuzeigen. Nachbesserungen erfolgen nach Prüfung.</p>
+
+        <p><strong>6. Datenschutz</strong><br>
+        Personenbezogene Daten werden nur zur Auftragsabwicklung und Kontaktaufnahme verarbeitet. Weitere Informationen siehe Datenschutzerklärung.</p>
+
+        <p><strong>7. Anwendbares Recht</strong><br>
+        Es gilt österreichisches Recht. Gerichtsstand ist, soweit zulässig, Linz.</p>
+      </div>
+
+      <div class="legal-block">
+        <h3>Datenschutzerklärung (Kurzversion, DSGVO)</h3>
+        <p><strong>Verantwortlicher:</strong> Duraku Glanzservice (siehe Impressum).<br>
+        <strong>Zweck:</strong> Verarbeitung zur Angebotslegung und Auftragserfüllung.<br>
+        <strong>Rechte:</strong> Auskunft, Berichtigung, Löschung, Einschränkung, Widerruf und Beschwerde bei der Datenschutzbehörde.</p>
+
+        <p><strong>Externe Dienste:</strong> Falls Sie ein externes Mailprogramm nutzen oder Dienste nutzen, können personenbezogene Daten an Dienstleister übertragen werden. Beachten Sie die jeweiligen Anbieterinformationen.</p>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div class="container footer-inner">
+        <div>© 2025 Duraku Glanzservice — Linz &amp; Umgebung.</div>
+        <div class="small-note">Made with care — Kontaktdaten im Impressum sind korrekt.</div>
+      </div>
+    </footer>
+  </main>
+
+<script>
+function sendMail(e){
+  e.preventDefault();
+  var f = document.getElementById('contactForm');
+  var name = f.name.value || '';
+  var email = f.email.value || '';
+  var phone = f.phone.value || '';
+  var service = f.service.value || '';
+  var message = f.message.value || '';
+  var subject = 'Anfrage von ' + name + ' - ' + service;
+  var body = 'Name: ' + name + '\nEmail: ' + email + '\nTelefon: ' + phone + '\nLeistung: ' + service + '\n\nNachricht:\n' + message;
+  var mailto = 'mailto:duraku-glanz@outlook.com'
+             + '?subject=' + encodeURIComponent(subject)
+             + '&body=' + encodeURIComponent(body);
+  window.location.href = mailto;
+  return false;
+}
+</script>
+
+</body>
+</html>
