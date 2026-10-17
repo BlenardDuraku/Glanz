@@ -5,24 +5,32 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>VetScribe</title>
 <link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%230f7b5f%22/%3E%3C/svg%3E">
 </head>
 <body>
 <header class="top">
-  <div class="wrap">
-    <strong class="logo">VetScribe</strong>
-    <span class="tag">Behandlung diktieren, Bericht erhalten</span>
+  <div class="wrap top-inner">
+    <div>
+      <strong class="logo">VetScribe</strong>
+      <span class="tag">Ein Gespräch rein, alle Papiere raus</span>
+    </div>
+    <nav class="row">
+      <button id="logBtn" class="btn ghost small" type="button">Freigabe-Protokoll</button>
+      <button id="settingsBtn" class="btn ghost small" type="button">Praxis-Einstellungen</button>
+    </nav>
   </div>
 </header>
 
 <main class="wrap grid">
   <section class="card">
     <h2>1. Behandlung aufnehmen</h2>
+    <p class="hint">Bitte den Tierhalter informieren, dass das Gespräch zur Dokumentation verarbeitet wird.</p>
     <div class="row">
       <label>Tierart
         <select id="species">
           <option value="">automatisch erkennen</option>
           <option>Hund</option><option>Katze</option><option>Pferd</option>
-          <option>Kaninchen</option><option>Rind</option><option>Vogel</option><option>Sonstige</option>
+          <option>Kaninchen</option><option>Meerschweinchen</option><option>Vogel</option><option>Sonstige</option>
         </select>
       </label>
       <label>Sprache
@@ -41,56 +49,95 @@
     <p id="noSpeech" class="warn" hidden>Spracherkennung wird von diesem Browser nicht unterstützt. Bitte Chrome oder Edge verwenden oder das Transkript einfügen.</p>
 
     <label>Transkript (bearbeitbar)
-      <textarea id="transcript" rows="12" placeholder="Während der Behandlung diktieren oder hier ein Gesprächsprotokoll einfügen …"></textarea>
+      <textarea id="transcript" rows="12" placeholder="Während der Behandlung diktieren oder ein Gesprächsprotokoll einfügen …"></textarea>
     </label>
     <label>Eigene Notizen (optional)
       <textarea id="notes" rows="3" placeholder="z. B. Gewicht 12,4 kg, Temp. 38,9 °C"></textarea>
     </label>
 
     <div class="row end">
-      <button id="clearBtn" class="btn ghost" type="button">Leeren</button>
-      <button id="genBtn" class="btn primary" type="button">Bericht erstellen</button>
+      <button id="clearBtn" class="btn ghost" type="button">Neue Behandlung</button>
+      <button id="genBtn" class="btn primary" type="button">Unterlagen erstellen</button>
     </div>
-    <p id="error" class="error" hidden></p>
+    <p id="error" class="error" role="alert" hidden></p>
   </section>
 
   <section class="card" id="output" aria-live="polite">
-    <h2>2. Bericht</h2>
-    <p id="placeholder" class="muted">Hier erscheint der fertige Bericht.</p>
-    <div id="loading" class="muted" hidden>Bericht wird erstellt …</div>
+    <h2>2. Prüfen &amp; freigeben</h2>
+    <p id="placeholder" class="muted">Hier erscheinen alle Unterlagen zur Behandlung als Entwürfe.</p>
+    <div id="loading" class="muted" hidden>Unterlagen werden erstellt …</div>
+
     <div id="result" hidden>
-      <div class="block">
-        <div class="block-head"><h3>Patient</h3></div>
-        <dl id="patient" class="patient"></dl>
+      <div id="checkBlock" class="warnblock">
+        <h3>Bitte prüfen</h3>
+        <ul id="checklist"></ul>
       </div>
-      <div class="block">
-        <div class="block-head"><h3>Behandlungsbericht (SOAP)</h3><button class="btn small" data-copy="soapText">Kopieren</button></div>
-        <div id="soap"></div>
+
+      <div class="tabs" role="tablist" id="tabs"></div>
+      <div class="doc">
+        <p id="docEmpty" class="muted" hidden>Für diese Behandlung nicht erforderlich.</p>
+        <textarea id="docText" rows="18" aria-label="Dokument bearbeiten"></textarea>
+        <div class="row doc-actions">
+          <button class="btn small" type="button" data-action="copy" disabled>Kopieren</button>
+          <button class="btn small" type="button" data-action="print" disabled>Drucken / PDF</button>
+          <button class="btn small" type="button" data-action="mail" disabled>Per E-Mail</button>
+          <span id="exportHint" class="muted small-text">Export erst nach Freigabe.</span>
+        </div>
       </div>
-      <div class="block">
-        <div class="block-head"><h3>Diagnosen &amp; Medikamente</h3></div>
-        <ul id="diagnosen"></ul>
-        <ul id="medikamente"></ul>
+
+      <div class="approve">
+        <label class="inline">Freigebende/r Tierärzt/in
+          <input id="approver" type="text" autocomplete="name">
+        </label>
+        <label class="check"><input id="reviewed" type="checkbox"> Ich habe alle Entwürfe geprüft.</label>
+        <button id="approveBtn" class="btn primary" type="button">Alle freigeben</button>
+        <p id="approveStatus" class="ok" hidden></p>
+        <p id="approveError" class="error" role="alert" hidden></p>
       </div>
-      <div class="block">
-        <div class="block-head"><h3>Info für den Besitzer</h3><button class="btn small" data-copy="besitzer">Kopieren</button></div>
-        <p id="besitzer" class="pre"></p>
-        <p id="nachkontrolle" class="muted"></p>
-      </div>
-      <div class="block">
-        <div class="block-head"><h3>Erbrachte Leistungen</h3></div>
-        <ul id="leistungen"></ul>
-      </div>
-      <div class="block warnblock" id="fehlendBlock">
-        <div class="block-head"><h3>Bitte prüfen / fehlt</h3></div>
-        <ul id="fehlend"></ul>
-      </div>
-      <p class="disclaimer">KI-Entwurf. Vor dem Übernehmen in die Akte bitte prüfen.</p>
-      <div class="row end"><button class="btn ghost" type="button" onclick="window.print()">Drucken</button></div>
+      <p class="disclaimer">KI-Entwürfe. Verantwortlich für Inhalt und Abrechnung bleibt die freigebende Tierärztin bzw. der freigebende Tierarzt.</p>
     </div>
   </section>
 </main>
 
-<script src="app.js"></script>
+<dialog id="settingsDialog">
+  <form method="dialog" id="settingsForm">
+    <h2>Praxis-Einstellungen</h2>
+    <div class="row">
+      <label>Praxisname <input name="praxisName" type="text"></label>
+      <label>Tierärzt/in (Standard) <input name="tierarztName" type="text"></label>
+    </div>
+    <label>Adresse <input name="praxisAdresse" type="text"></label>
+    <div class="row">
+      <label>Land
+        <select name="land"><option value="AT">Österreich</option><option value="DE">Deutschland (GOT)</option></select>
+      </label>
+      <label>USt-Satz in %
+        <input name="ustSatz" type="number" min="0" max="30" step="0.1">
+      </label>
+    </div>
+    <label>Ton der Besitzerinfo <input name="tonBesitzerinfo" type="text"></label>
+    <label>Abkürzungen der Praxis (eine pro Zeile)
+      <textarea name="abkuerzungen" rows="4"></textarea>
+    </label>
+    <label>Preisliste – eine Leistung pro Zeile: <code>Code; Leistung; Preis netto</code>
+      <textarea name="preisliste" rows="8" placeholder="AU; Allgemeinuntersuchung Hund; 35,00&#10;IMP; Impfung SHPPiL; 48,00&#10;; Injektion s.c.; 12,50"></textarea>
+    </label>
+    <p id="settingsError" class="error" hidden></p>
+    <div class="row end">
+      <button class="btn ghost" value="cancel" formnovalidate>Abbrechen</button>
+      <button class="btn primary" id="saveSettings" value="default">Speichern</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="logDialog">
+  <h2>Freigabe-Protokoll</h2>
+  <p class="muted small-text">Wer hat wann welche Dokumente freigegeben, und wurde der Entwurf geändert. Inhalte werden nur als Prüfsumme gespeichert.</p>
+  <div id="logList"></div>
+  <div class="row end"><button class="btn" type="button" id="closeLog">Schließen</button></div>
+</dialog>
+
+<iframe id="printFrame" title="Druckansicht" hidden></iframe>
+<script type="module" src="app.js"></script>
 </body>
 </html>

@@ -1,10 +1,73 @@
+import { DOC_LABELS, buildDocuments } from "./format.js";
+
 const $ = (id) => document.getElementById(id);
 
 const transcriptEl = $("transcript");
 const recBtn = $("recBtn");
-const recStatus = $("recStatus");
 const genBtn = $("genBtn");
 const errorEl = $("error");
+const docText = $("docText");
+
+let settings = null;
+let drafts = {}; // type -> AI draft text (never changed)
+let finals = {}; // type -> current, possibly edited text
+let activeType = "bericht";
+let approval = null; // set after "Alle freigeben"; cleared on any edit
+
+// --- Settings ---
+async function loadSettings() {
+  const res = await fetch("/api/settings");
+  settings = (await res.json()).settings;
+  if (!$("approver").value) $("approver").value = settings.tierarztName;
+}
+
+$("settingsBtn").addEventListener("click", () => {
+  const form = $("settingsForm");
+  for (const [key, value] of Object.entries(settings)) {
+    if (form.elements[key]) form.elements[key].value = value;
+  }
+  $("settingsError").hidden = true;
+  $("settingsDialog").showModal();
+});
+
+$("saveSettings").addEventListener("click", async (event) => {
+  event.preventDefault();
+  const form = $("settingsForm");
+  const body = Object.fromEntries(new FormData(form));
+  const res = await fetch("/api/settings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    $("settingsError").textContent = data.error;
+    $("settingsError").hidden = false;
+    return;
+  }
+  settings = data.settings;
+  if (!$("approver").value) $("approver").value = settings.tierarztName;
+  $("settingsDialog").close();
+});
+
+// --- Approval log ---
+$("logBtn").addEventListener("click", async () => {
+  const res = await fetch("/api/approvals");
+  const { approvals } = await res.json();
+  const list = $("logList");
+  list.replaceChildren();
+  if (!approvals.length) list.append(el("p", "Noch keine Freigaben.", "muted"));
+  for (const a of approvals) {
+    const item = el("div", "", "log-item");
+    const when = new Date(a.approvedAt).toLocaleString("de-AT");
+    item.append(el("strong", `${when} – ${a.tierarzt}`));
+    const docs = a.documents.map((d) => `${DOC_LABELS[d.type]}${d.edited ? " (geändert)" : ""}`).join(", ");
+    item.append(el("p", docs, "small-text"));
+    list.append(item);
+  }
+  $("logDialog").showModal();
+});
+$("closeLog").addEventListener("click", () => $("logDialog").close());
 
 // --- Speech recognition (browser-native, Chrome/Edge) ---
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -45,7 +108,6 @@ function startRecording() {
       startRecording();
     }
   };
-
   recognition.start();
 }
 
@@ -54,7 +116,7 @@ recBtn.addEventListener("click", () => {
   recording = !recording;
   recBtn.classList.toggle("on", recording);
   recBtn.textContent = recording ? "■ Aufnahme stoppen" : "● Aufnahme starten";
-  recStatus.textContent = recording ? "Hört zu …" : "";
+  $("recStatus").textContent = recording ? "Hört zu …" : "";
   if (recording) startRecording();
   else recognition?.stop();
 });
@@ -62,10 +124,15 @@ recBtn.addEventListener("click", () => {
 $("clearBtn").addEventListener("click", () => {
   transcriptEl.value = "";
   $("notes").value = "";
+  drafts = {};
+  finals = {};
+  approval = null;
+  $("result").hidden = true;
+  $("placeholder").hidden = false;
   hideError();
 });
 
-// --- Report generation ---
+// --- Generation ---
 genBtn.addEventListener("click", async () => {
   hideError();
   if (recording) recBtn.click();
@@ -87,7 +154,8 @@ genBtn.addEventListener("click", async () => {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Fehler ${res.status}`);
-    renderReport(data.report);
+    settings = data.settings;
+    showDocuments(data.report, data.prices);
   } catch (err) {
     showError(err.message);
     $("placeholder").hidden = false;
@@ -97,76 +165,142 @@ genBtn.addEventListener("click", async () => {
   }
 });
 
+function showDocuments(report, prices) {
+  drafts = buildDocuments(report, settings, prices);
+  finals = { ...drafts };
+  approval = null;
+
+  const checklist = $("checklist");
+  checklist.replaceChildren(...report.pruefliste.map((t) => el("li", t)));
+  $("checkBlock").hidden = report.pruefliste.length === 0;
+
+  activeType = "bericht";
+  renderTabs();
+  renderActive();
+  renderApproval();
+  $("reviewed").checked = false;
+  $("result").hidden = false;
+}
+
+function renderTabs() {
+  const tabs = $("tabs");
+  tabs.replaceChildren();
+  for (const [type, label] of Object.entries(DOC_LABELS)) {
+    const tab = el("button", label, "tab");
+    tab.type = "button";
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-selected", String(type === activeType));
+    if (!(type in finals)) tab.classList.add("absent");
+    if (finals[type] !== undefined && finals[type] !== drafts[type]) tab.classList.add("edited");
+    tab.addEventListener("click", () => {
+      activeType = type;
+      renderTabs();
+      renderActive();
+    });
+    tabs.append(tab);
+  }
+}
+
+function renderActive() {
+  const present = activeType in finals;
+  docText.hidden = !present;
+  $("docEmpty").hidden = present;
+  docText.value = present ? finals[activeType] : "";
+  for (const b of document.querySelectorAll("[data-action]")) b.disabled = !approval || !present;
+  $("exportHint").hidden = Boolean(approval);
+}
+
+docText.addEventListener("input", () => {
+  finals[activeType] = docText.value;
+  // Any edit after approval invalidates it: the approved version must match what leaves the practice.
+  if (approval) {
+    approval = null;
+    renderApproval();
+    renderActive();
+  }
+  renderTabs();
+});
+
+// --- Approval ---
+$("approveBtn").addEventListener("click", async () => {
+  const approveError = $("approveError");
+  approveError.hidden = true;
+  const fail = (msg) => {
+    approveError.textContent = msg;
+    approveError.hidden = false;
+  };
+  if (!$("reviewed").checked) return fail("Bitte bestätigen, dass alle Entwürfe geprüft wurden.");
+  const documents = {};
+  for (const type of Object.keys(finals)) documents[type] = { draft: drafts[type], final: finals[type] };
+  const res = await fetch("/api/approvals", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tierarzt: $("approver").value, documents }),
+  });
+  const data = await res.json();
+  if (!res.ok) return fail(data.error);
+  approval = data.approval;
+  renderApproval();
+  renderActive();
+});
+
+function renderApproval() {
+  const status = $("approveStatus");
+  if (approval) {
+    const when = new Date(approval.approvedAt).toLocaleTimeString("de-AT", { hour: "2-digit", minute: "2-digit" });
+    status.textContent = `✓ Freigegeben um ${when} von ${approval.tierarzt}. Export ist jetzt möglich.`;
+  }
+  status.hidden = !approval;
+  $("approveBtn").textContent = approval ? "Erneut freigeben" : "Alle freigeben";
+}
+
+// --- Export (only after approval) ---
+document.addEventListener("click", async (event) => {
+  const action = event.target.dataset?.action;
+  if (!action || !approval) return;
+  const text = finals[activeType];
+  const title = DOC_LABELS[activeType];
+
+  if (action === "copy") {
+    try {
+      await navigator.clipboard.writeText(text);
+      flash(event.target, "Kopiert ✓");
+    } catch {
+      showError("Kopieren nicht möglich. Bitte manuell markieren.");
+    }
+  } else if (action === "print") {
+    printText(title, text);
+  } else if (action === "mail") {
+    const subject = `${title}${settings.praxisName ? " – " + settings.praxisName : ""}`;
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+  }
+});
+
+function printText(title, text) {
+  const frame = $("printFrame");
+  const doc = frame.contentDocument;
+  doc.open();
+  doc.write("<!doctype html><html lang='de'><head><meta charset='utf-8'><title></title>" +
+    "<style>body{font:12pt/1.5 Georgia,serif;margin:2cm;color:#000}pre{white-space:pre-wrap;font:inherit}</style></head><body><pre></pre></body></html>");
+  doc.close();
+  doc.title = title;
+  doc.querySelector("pre").textContent = text;
+  frame.contentWindow.focus();
+  frame.contentWindow.print();
+}
+
+// --- Helpers ---
 function el(tag, text, className) {
   const node = document.createElement(tag);
   if (text) node.textContent = text;
   if (className) node.className = className;
   return node;
 }
-
-function fillList(id, items, emptyText) {
-  const list = $(id);
-  list.replaceChildren(...(items.length ? items : [emptyText]).map((t) => el("li", t)));
+function flash(button, label) {
+  const old = button.textContent;
+  button.textContent = label;
+  setTimeout(() => (button.textContent = old), 1500);
 }
-
-let soapText = "";
-
-function renderReport(r) {
-  const patient = $("patient");
-  patient.replaceChildren();
-  for (const [label, value] of [
-    ["Tierart", r.patient.tierart],
-    ["Name", r.patient.name],
-    ["Rasse", r.patient.rasse],
-    ["Alter", r.patient.alter],
-    ["Gewicht", r.patient.gewicht],
-  ]) {
-    patient.append(el("dt", label), el("dd", value || "–"));
-  }
-
-  const soapParts = [
-    ["S – Subjektiv", r.soap.subjektiv],
-    ["O – Objektiv", r.soap.objektiv],
-    ["A – Assessment", r.soap.assessment],
-    ["P – Plan", r.soap.plan],
-  ];
-  $("soap").replaceChildren(
-    ...soapParts.map(([label, text]) => {
-      const part = el("div", "", "soap-part");
-      part.append(el("b", label), el("p", text || "–", "pre"));
-      return part;
-    }),
-  );
-  soapText = soapParts.map(([label, text]) => `${label}\n${text || "–"}`).join("\n\n");
-
-  fillList("diagnosen", r.diagnosen.map((d) => `Diagnose: ${d}`), "Keine Diagnose genannt");
-  fillList(
-    "medikamente",
-    r.medikamente.map((m) => [m.name, m.dosis, m.anwendung].filter(Boolean).join(" – ")),
-    "Keine Medikamente verordnet",
-  );
-  $("besitzer").textContent = r.besitzer_info;
-  $("nachkontrolle").textContent = r.nachkontrolle ? `Nachkontrolle: ${r.nachkontrolle}` : "";
-  fillList("leistungen", r.leistungen, "Keine Leistungen erkannt");
-  $("fehlendBlock").hidden = r.fehlende_angaben.length === 0;
-  fillList("fehlend", r.fehlende_angaben, "");
-
-  $("result").hidden = false;
-}
-
-document.addEventListener("click", async (event) => {
-  const key = event.target.dataset?.copy;
-  if (!key) return;
-  const text = key === "soapText" ? soapText : $(key).textContent;
-  try {
-    await navigator.clipboard.writeText(text);
-    event.target.textContent = "Kopiert ✓";
-    setTimeout(() => (event.target.textContent = "Kopieren"), 1500);
-  } catch {
-    showError("Kopieren nicht möglich. Bitte manuell markieren.");
-  }
-});
-
 function showError(msg) {
   errorEl.textContent = msg;
   errorEl.hidden = false;
@@ -174,3 +308,5 @@ function showError(msg) {
 function hideError() {
   errorEl.hidden = true;
 }
+
+loadSettings().catch(() => showError("Einstellungen konnten nicht geladen werden."));

@@ -71,6 +71,37 @@ textarea { resize: vertical; }
 .block:first-child { border-top: 0; padding-top: 0; }
 .block-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
 .warnblock { background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 8px; padding: 10px 12px; margin-top: 8px; }
+.top-inner { justify-content: space-between; align-items: center; }
+.hint { font-size: .85rem; color: var(--muted); margin: -6px 0 12px; }
+.small-text { font-size: .85rem; }
+.ok { color: var(--accent); font-weight: 600; margin: 8px 0 0; }
+input[type="text"], input[type="number"] {
+  display: block; width: 100%; margin-top: 4px;
+  font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+}
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 10px; }
+.tab {
+  font: inherit; font-size: .85rem; cursor: pointer; padding: 5px 10px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text);
+}
+.tab[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.tab.absent { opacity: .5; }
+.tab.edited::after { content: " •"; }
+.doc textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88rem; }
+.doc-actions { align-items: center; margin-top: 8px; }
+.approve { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 14px; }
+.approve .inline { max-width: 340px; }
+.check { display: flex; gap: 8px; align-items: center; color: var(--text); margin-bottom: 10px; }
+.check input { width: 18px; height: 18px; }
+dialog {
+  width: min(680px, calc(100vw - 32px)); border: 1px solid var(--line); border-radius: 12px;
+  background: var(--card); color: var(--text); padding: 20px;
+}
+dialog::backdrop { background: rgba(0, 0, 0, .45); }
+.log-item { border-top: 1px solid var(--line); padding: 8px 0; }
+.log-item p { margin: 2px 0 0; color: var(--muted); }
+code { font-size: .85em; }
 .patient { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; margin: 0; }
 .patient dt { color: var(--muted); }
 .patient dd { margin: 0; }
