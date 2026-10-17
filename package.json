@@ -1,0 +1,32 @@
+{
+  "name": "vetscribe",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test",
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BlenardDuraku/glanz.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/BlenardDuraku/glanz/issues"
+  },
+  "homepage": "https://github.com/BlenardDuraku/glanz#readme",
+  "type": "module",
+  "private": "true",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
+    "express": "^5.3.0",
+    "zod": "^4.6.7"
+  }
+}

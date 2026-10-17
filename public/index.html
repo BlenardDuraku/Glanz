@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VetScribe</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <strong class="logo">VetScribe</strong>
+    <span class="tag">Behandlung diktieren, Bericht erhalten</span>
+  </div>
+</header>
+
+<main class="wrap grid">
+  <section class="card">
+    <h2>1. Behandlung aufnehmen</h2>
+    <div class="row">
+      <label>Tierart
+        <select id="species">
+          <option value="">automatisch erkennen</option>
+          <option>Hund</option><option>Katze</option><option>Pferd</option>
+          <option>Kaninchen</option><option>Rind</option><option>Vogel</option><option>Sonstige</option>
+        </select>
+      </label>
+      <label>Sprache
+        <select id="lang">
+          <option value="de-AT">Deutsch (Österreich)</option>
+          <option value="de-DE">Deutsch (Deutschland)</option>
+          <option value="de-CH">Deutsch (Schweiz)</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="rec">
+      <button id="recBtn" class="btn rec-btn" type="button">● Aufnahme starten</button>
+      <span id="recStatus" class="muted"></span>
+    </div>
+    <p id="noSpeech" class="warn" hidden>Spracherkennung wird von diesem Browser nicht unterstützt. Bitte Chrome oder Edge verwenden oder das Transkript einfügen.</p>
+
+    <label>Transkript (bearbeitbar)
+      <textarea id="transcript" rows="12" placeholder="Während der Behandlung diktieren oder hier ein Gesprächsprotokoll einfügen …"></textarea>
+    </label>
+    <label>Eigene Notizen (optional)
+      <textarea id="notes" rows="3" placeholder="z. B. Gewicht 12,4 kg, Temp. 38,9 °C"></textarea>
+    </label>
+
+    <div class="row end">
+      <button id="clearBtn" class="btn ghost" type="button">Leeren</button>
+      <button id="genBtn" class="btn primary" type="button">Bericht erstellen</button>
+    </div>
+    <p id="error" class="error" hidden></p>
+  </section>
+
+  <section class="card" id="output" aria-live="polite">
+    <h2>2. Bericht</h2>
+    <p id="placeholder" class="muted">Hier erscheint der fertige Bericht.</p>
+    <div id="loading" class="muted" hidden>Bericht wird erstellt …</div>
+    <div id="result" hidden>
+      <div class="block">
+        <div class="block-head"><h3>Patient</h3></div>
+        <dl id="patient" class="patient"></dl>
+      </div>
+      <div class="block">
+        <div class="block-head"><h3>Behandlungsbericht (SOAP)</h3><button class="btn small" data-copy="soapText">Kopieren</button></div>
+        <div id="soap"></div>
+      </div>
+      <div class="block">
+        <div class="block-head"><h3>Diagnosen &amp; Medikamente</h3></div>
+        <ul id="diagnosen"></ul>
+        <ul id="medikamente"></ul>
+      </div>
+      <div class="block">
+        <div class="block-head"><h3>Info für den Besitzer</h3><button class="btn small" data-copy="besitzer">Kopieren</button></div>
+        <p id="besitzer" class="pre"></p>
+        <p id="nachkontrolle" class="muted"></p>
+      </div>
+      <div class="block">
+        <div class="block-head"><h3>Erbrachte Leistungen</h3></div>
+        <ul id="leistungen"></ul>
+      </div>
+      <div class="block warnblock" id="fehlendBlock">
+        <div class="block-head"><h3>Bitte prüfen / fehlt</h3></div>
+        <ul id="fehlend"></ul>
+      </div>
+      <p class="disclaimer">KI-Entwurf. Vor dem Übernehmen in die Akte bitte prüfen.</p>
+      <div class="row end"><button class="btn ghost" type="button" onclick="window.print()">Drucken</button></div>
+    </div>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
