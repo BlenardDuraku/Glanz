@@ -40,8 +40,36 @@ Tests: `npm test`
 | `lib/approvals.js` | Freigabe-Protokoll (`data/freigaben.jsonl`) |
 | `public/format.js` | Baut die 7 Dokumente, rechnet Preise und Summen |
 | `public/` | Oberfläche |
+| `scripts/build-n8n-workflow.js` | Erzeugt `n8n/vetscribe-workflow.json` |
 
 Preisliste in den Praxis-Einstellungen, eine Zeile pro Leistung: `Code; Leistung; Preis netto`, z. B. `AU; Allgemeinuntersuchung Hund; 35,00`.
+
+## n8n-Version
+
+`n8n/vetscribe-workflow.json` enthält denselben Ablauf als n8n-Workflow (gleicher Prompt, gleiches Datenschema, gleiche Dokument-Logik). Die Datei wird aus dem App-Code erzeugt: nach Änderungen `npm run build:n8n` ausführen; ein Test prüft, dass sie aktuell ist.
+
+**Einrichten in n8n:**
+1. Workflows → Import from File → `vetscribe-workflow.json`.
+2. Knoten **Eingabe prüfen** öffnen und oben Praxisname, Adresse, Tierärzt:in, Land, USt-Satz und Preisliste anpassen.
+3. Knoten **Claude API** öffnen → Credential anlegen: *Header Auth*, Name `x-api-key`, Wert = API-Key von console.anthropic.com.
+4. Workflow aktivieren.
+
+**Endpunkte:**
+
+| Methode | Pfad | Body | Antwort |
+|---|---|---|---|
+| POST | `/webhook/vetscribe/unterlagen` | `{ "transcript": "...", "notes": "", "species": "Hund" }` | `report`, `documents` (7 Entwürfe), `pruefliste` |
+| POST | `/webhook/vetscribe/freigabe` | `{ "tierarzt": "Dr. X", "documents": { "bericht": { "draft": "...", "final": "..." } } }` | Protokolleintrag |
+| GET | `/webhook/vetscribe/freigaben` | – | letzte 50 Freigaben |
+
+Beispiel:
+```bash
+curl -X POST https://DEIN-N8N/webhook/vetscribe/unterlagen \
+  -H "Content-Type: application/json" \
+  -d '{"transcript":"Bello, Labrador, 7 Jahre, hustet seit drei Tagen ..."}'
+```
+
+Hinweise: Das Freigabe-Protokoll liegt in den Workflow-Static-Data und wird nur bei aktivem Workflow (Produktions-URL) gespeichert, nicht bei Testläufen. Für echten Betrieb besser in eine Datenbank oder ein Sheet schreiben. Die Ergebnisse von `/unterlagen` können in n8n weiterverarbeitet werden (z. B. E-Mail an Halter), aber nur nach Freigabe durch den Tierarzt.
 
 ## Bekannte Grenzen des Prototyps
 

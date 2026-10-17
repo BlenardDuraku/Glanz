@@ -6,7 +6,8 @@
   "scripts": {
     "test": "node --test",
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "build:n8n": "node scripts/build-n8n-workflow.js"
   },
   "repository": {
     "type": "git",

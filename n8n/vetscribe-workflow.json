@@ -1,0 +1,390 @@
+{
+  "name": "VetScribe – Behandlungs-Copilot",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## VetScribe – Behandlungs-Copilot\nEin Gespräch rein, alle Papiere raus.\n\n**Einrichten**\n1. Im Knoten **Eingabe prüfen** oben die Praxis-Einstellungen und Preisliste anpassen.\n2. Im Knoten **Claude API** Zugangsdaten anlegen: *Header Auth*, Name `x-api-key`, Wert = API-Key von console.anthropic.com.\n3. Workflow aktivieren.\n\n**Aufrufen**\n`POST /webhook/vetscribe/unterlagen` mit `{ \"transcript\": \"...\", \"notes\": \"\", \"species\": \"Hund\" }`\n→ 7 Entwürfe + Prüfliste.\n\n`POST /webhook/vetscribe/freigabe` mit `{ \"tierarzt\": \"Dr. X\", \"documents\": { \"bericht\": { \"draft\": \"...\", \"final\": \"...\" } } }`\n\n`GET /webhook/vetscribe/freigaben` → Protokoll\n\n**Regel:** Alles sind Entwürfe. Nichts an Halter, Versicherung oder Behörden schicken, bevor ein Tierarzt freigegeben hat.",
+        "width": 560,
+        "height": 420
+      },
+      "id": "be64868c-3d2b-cd0d-5578-f3ca1b57dbe9",
+      "name": "Anleitung",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        -420
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vetscribe/unterlagen",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "21cccb59-c300-3645-719a-19417472ecb9",
+      "name": "Unterlagen anfordern",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        100
+      ],
+      "webhookId": "49ed6df0-ffe8-120c-868c-0f352723071a"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ======================================================================\n// PRAXIS-EINSTELLUNGEN: hier anpassen\n// Preisliste: eine Leistung pro Zeile \"Code; Leistung; Preis netto\"\n// ======================================================================\nconst SETTINGS = {\n  \"praxisName\": \"Tierarztpraxis Muster\",\n  \"praxisAdresse\": \"Hauptstraße 1, 4020 Linz\",\n  \"tierarztName\": \"Dr. Anna Muster\",\n  \"land\": \"AT\",\n  \"ustSatz\": 20,\n  \"abkuerzungen\": \"AU = Allgemeinuntersuchung\\no.b.B. = ohne besonderen Befund\",\n  \"preisliste\": \"AU; Allgemeinuntersuchung Hund; 35,00\\n; Injektion s.c.; 12,50\\nIMP; Impfung Hund (SHPPiL); 48,00\",\n  \"tonBesitzerinfo\": \"freundlich, Sie-Form, einfache Sprache\"\n};\n\n// ---- ab hier nichts ändern (erzeugt aus dem VetScribe-Code) ----\nconst MODEL = \"claude-opus-5-5\";\nconst MAX_TRANSCRIPT_CHARS = 60000;\nconst SYSTEM_PROMPT = \"Du bist der Dokumentationsassistent einer Tierarztpraxis im deutschsprachigen Raum.\\nDu erhältst das Transkript eines Behandlungsgesprächs (oft mit Dialekt, Füllwörtern und Erkennungsfehlern), optionale Notizen des Tierarztes, die Einstellungen der Praxis und deren Preisliste.\\n\\nErstelle daraus alle Unterlagen, die nach der Behandlung anfallen. Alles ist ein Entwurf, den der Tierarzt prüft.\\n\\n- patient: Stammdaten aus dem Gespräch; halter = Name des Tierhalters, falls genannt.\\n- soap: Behandlungsbericht für die Akte. Subjektiv (Vorbericht laut Halter), Objektiv (Befunde, Messwerte), Assessment (Einschätzung, Verdachts- und Differenzialdiagnosen), Plan (Therapie, Diagnostik, Empfehlungen). Fachsprachlich und knapp. Verwende die Abkürzungen der Praxis.\\n- diagnosen: gestellte oder Verdachtsdiagnosen (\\\"V.a. ...\\\").\\n- medikamente: nur was tatsächlich verordnet, abgegeben oder verabreicht wurde, mit Dosis und Anwendung wie genannt.\\n- besitzer_info: Zusammenfassung für den Tierhalter im gewünschten Ton der Praxis: was festgestellt wurde, was zu Hause zu tun ist (Medikamente mit Anwendung), worauf zu achten ist, wann man sich melden soll.\\n- leistungen: tatsächlich erbrachte Leistungen in dieser Behandlung. Ordne jede Leistung der passenden Zeile der Preisliste zu (preisliste_id, z. B. \\\"P3\\\"). Gibt es keine eindeutig passende Zeile, preisliste_id = \\\"\\\" und die Leistung in Klartext. Erfinde niemals Preise, Gebührenpositionen oder Ziffern.\\n- kostenvoranschlag: nur erforderlich, wenn im Gespräch eine weitere Behandlung, OP oder Diagnostik besprochen wurde, die noch nicht durchgeführt ist. Positionen wie bei leistungen. hinweis: Unsicherheiten (z. B. \\\"abhängig vom Befund\\\").\\n- versicherung: Diagnose und durchgeführte Behandlung in klarer, sachlicher Sprache für eine Tierkrankenversicherung.\\n- ueberweisung: nur erforderlich, wenn an Klinik, Fachtierarzt oder externes Labor überwiesen wird. brief: kollegialer Überweisungsbrief mit Signalement, Vorbericht, Befunden, bisheriger Therapie und Fragestellung.\\n- erinnerungen: vereinbarte Kontrollen, Impfungen, Medikamentenende, mit Zeitpunkt wie besprochen.\\n- pruefliste: alles, was der Tierarzt prüfen oder ergänzen muss: fehlende Angaben (z. B. Gewicht), unsichere Medikamentennamen oder Dosierungen, Leistungen ohne passende Preislisten-Zeile, unklare Stellen im Transkript.\\n\\nRegeln:\\n- Erfinde keine Befunde, Werte, Dosierungen, Wartezeiten, Diagnosen oder Preise. Was fehlt, kommt auf die pruefliste.\\n- Korrigiere Erkennungsfehler bei Fachbegriffen und Medikamentennamen nur, wenn die Bedeutung eindeutig ist; sonst auf die pruefliste.\\n- Unbekannte Felder als leeren String.\\n- Smalltalk ohne medizinische Relevanz ignorieren.\";\nconst OUTPUT_SCHEMA = {\"type\":\"object\",\"properties\":{\"patient\":{\"type\":\"object\",\"properties\":{\"tierart\":{\"type\":\"string\"},\"name\":{\"type\":\"string\"},\"rasse\":{\"type\":\"string\"},\"alter\":{\"type\":\"string\"},\"gewicht\":{\"type\":\"string\"},\"halter\":{\"type\":\"string\"}},\"required\":[\"tierart\",\"name\",\"rasse\",\"alter\",\"gewicht\",\"halter\"],\"additionalProperties\":false},\"soap\":{\"type\":\"object\",\"properties\":{\"subjektiv\":{\"type\":\"string\"},\"objektiv\":{\"type\":\"string\"},\"assessment\":{\"type\":\"string\"},\"plan\":{\"type\":\"string\"}},\"required\":[\"subjektiv\",\"objektiv\",\"assessment\",\"plan\"],\"additionalProperties\":false},\"diagnosen\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"medikamente\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"},\"dosis\":{\"type\":\"string\"},\"anwendung\":{\"type\":\"string\"}},\"required\":[\"name\",\"dosis\",\"anwendung\"],\"additionalProperties\":false}},\"besitzer_info\":{\"type\":\"string\"},\"leistungen\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"leistung\":{\"type\":\"string\"},\"menge\":{\"type\":\"number\"},\"preisliste_id\":{\"type\":\"string\"}},\"required\":[\"leistung\",\"menge\",\"preisliste_id\"],\"additionalProperties\":false}},\"kostenvoranschlag\":{\"type\":\"object\",\"properties\":{\"erforderlich\":{\"type\":\"boolean\"},\"anlass\":{\"type\":\"string\"},\"positionen\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"leistung\":{\"type\":\"string\"},\"menge\":{\"type\":\"number\"},\"preisliste_id\":{\"type\":\"string\"}},\"required\":[\"leistung\",\"menge\",\"preisliste_id\"],\"additionalProperties\":false}},\"hinweis\":{\"type\":\"string\"}},\"required\":[\"erforderlich\",\"anlass\",\"positionen\",\"hinweis\"],\"additionalProperties\":false},\"versicherung\":{\"type\":\"object\",\"properties\":{\"diagnose_klartext\":{\"type\":\"string\"},\"behandlung_klartext\":{\"type\":\"string\"}},\"required\":[\"diagnose_klartext\",\"behandlung_klartext\"],\"additionalProperties\":false},\"ueberweisung\":{\"type\":\"object\",\"properties\":{\"erforderlich\":{\"type\":\"boolean\"},\"empfaenger\":{\"type\":\"string\"},\"fragestellung\":{\"type\":\"string\"},\"brief\":{\"type\":\"string\"}},\"required\":[\"erforderlich\",\"empfaenger\",\"fragestellung\",\"brief\"],\"additionalProperties\":false},\"erinnerungen\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"anlass\":{\"type\":\"string\"},\"wann\":{\"type\":\"string\"}},\"required\":[\"anlass\",\"wann\"],\"additionalProperties\":false}},\"pruefliste\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}}},\"required\":[\"patient\",\"soap\",\"diagnosen\",\"medikamente\",\"besitzer_info\",\"leistungen\",\"kostenvoranschlag\",\"versicherung\",\"ueberweisung\",\"erinnerungen\",\"pruefliste\"],\"additionalProperties\":false};\nclass ReportInputError extends Error {}\nfunction parsePriceList(text) {\n  const items = [];\n  for (const raw of (text || \"\").split(\"\\n\")) {\n    const line = raw.trim();\n    if (!line || line.startsWith(\"#\")) continue;\n    const parts = line.split(\";\").map((p) => p.trim());\n    if (parts.length < 3) continue;\n    const [code, leistung, preisText] = parts;\n    const preis = Number(preisText.replace(/\\s|€/g, \"\").replace(\",\", \".\"));\n    if (!leistung || !Number.isFinite(preis)) continue;\n    items.push({ id: `P${items.length + 1}`, code, leistung, preis });\n  }\n  return items;\n}\nfunction validateInput(body) {\n  const transcript = typeof body?.transcript === \"string\" ? body.transcript.trim() : \"\";\n  const notes = typeof body?.notes === \"string\" ? body.notes.trim() : \"\";\n  const species = typeof body?.species === \"string\" ? body.species.trim() : \"\";\n\n  if (transcript.length < 20) {\n    throw new ReportInputError(\"Das Transkript ist zu kurz für einen Bericht.\");\n  }\n  if (transcript.length + notes.length > MAX_TRANSCRIPT_CHARS) {\n    throw new ReportInputError(\"Das Transkript ist zu lang. Bitte auf eine Behandlung beschränken.\");\n  }\n  return { transcript, notes, species };\n}\nfunction buildPracticeContext(settings) {\n  const prices = parsePriceList(settings.preisliste);\n  const priceLines = prices.length\n    ? prices.map((p) => `${p.id}: ${p.code ? p.code + \" – \" : \"\"}${p.leistung}`).join(\"\\n\")\n    : \"(keine Preisliste hinterlegt)\";\n  return [\n    `Land: ${settings.land === \"DE\" ? \"Deutschland (GOT)\" : \"Österreich\"}`,\n    `Ton der Besitzerinfo: ${settings.tonBesitzerinfo || \"freundlich, Sie-Form\"}`,\n    `<abkuerzungen>\\n${settings.abkuerzungen || \"(keine)\"}\\n</abkuerzungen>`,\n    `<preisliste>\\n${priceLines}\\n</preisliste>`,\n  ].join(\"\\n\\n\");\n}\nfunction buildUserMessage({ transcript, notes, species }) {\n  const parts = [];\n  if (species) parts.push(`Tierart laut Praxis: ${species}`);\n  if (notes) parts.push(`<notizen>\\n${notes}\\n</notizen>`);\n  parts.push(`<transkript>\\n${transcript}\\n</transkript>`);\n  return parts.join(\"\\n\\n\");\n}\n\nconst body = $input.first().json.body || {};\nlet input;\ntry {\n  input = validateInput(body);\n} catch (err) {\n  return [{ json: { ok: false, status: 400, body: { error: err.message } } }];\n}\n\nreturn [{\n  json: {\n    ok: true,\n    settings: SETTINGS,\n    prices: parsePriceList(SETTINGS.preisliste),\n    request: {\n      model: MODEL,\n      max_tokens: 16000,\n      fallbacks: \"default\",\n      output_config: { effort: \"medium\", format: { type: \"json_schema\", schema: OUTPUT_SCHEMA } },\n      system: [\n        { type: \"text\", text: SYSTEM_PROMPT },\n        { type: \"text\", text: buildPracticeContext(SETTINGS), cache_control: { type: \"ephemeral\" } },\n      ],\n      messages: [{ role: \"user\", content: buildUserMessage(input) }],\n    },\n  },\n}];\n"
+      },
+      "id": "e035fbad-8aee-d8fd-935b-e4c50cd8dc5a",
+      "name": "Eingabe prüfen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "d596ab3b-ca6c-e56d-88a9-2c7efe5ab263",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0e18f8ae-f992-3504-338a-7d11739d60dd",
+      "name": "Eingabe ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        480,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "anthropic-beta",
+              "value": "server-side-fallback-2026-07-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request) }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "e73764c4-8f2f-9243-50a7-ce83e9230802",
+      "name": "Claude API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        0
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Baut die 7 Dokumente. Preise und Summen kommen aus der Preisliste, nicht von der KI.\n// Turns the structured AI report into the seven editable document drafts.\n// Pure functions: used in the browser and in the Node tests.\n// Prices and totals are computed here from the practice price list, never by the AI.\n\nconst DOC_LABELS = {\n  bericht: \"Behandlungsbericht\",\n  besitzerinfo: \"Besitzerinfo\",\n  rechnung: \"Rechnungsentwurf\",\n  kostenvoranschlag: \"Kostenvoranschlag\",\n  versicherung: \"Versicherungspaket\",\n  ueberweisung: \"Überweisung\",\n  erinnerung: \"Erinnerungen\",\n};\n\nfunction money(value) {\n  return value.toLocaleString(\"de-AT\", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + \" €\";\n}\n\nconst round2 = (n) => Math.round(n * 100) / 100;\n\nfunction resolvePositions(positions, prices) {\n  const byId = new Map(prices.map((p) => [p.id, p]));\n  return positions.map((pos) => {\n    const menge = Number.isFinite(pos.menge) && pos.menge > 0 ? pos.menge : 1;\n    const item = byId.get(pos.preisliste_id);\n    if (!item) return { leistung: pos.leistung, code: \"\", menge, einzel: null, summe: null };\n    return { leistung: item.leistung, code: item.code, menge, einzel: item.preis, summe: round2(item.preis * menge) };\n  });\n}\n\nfunction totals(lines, ustSatz) {\n  const netto = round2(lines.reduce((sum, l) => sum + (l.summe ?? 0), 0));\n  const ust = round2((netto * ustSatz) / 100);\n  return { netto, ust, brutto: round2(netto + ust), offen: lines.filter((l) => l.summe === null).length };\n}\n\nfunction header(settings) {\n  return [settings.praxisName, settings.praxisAdresse].filter(Boolean).join(\"\\n\");\n}\n\nfunction signalement(p) {\n  const parts = [p.tierart, p.rasse, p.alter, p.gewicht && `${p.gewicht}`].filter(Boolean);\n  return `${p.name || \"Patient\"}${parts.length ? \" (\" + parts.join(\", \") + \")\" : \"\"}`;\n}\n\nfunction positionTable(lines, settings) {\n  const rows = lines.map((l) => {\n    const code = l.code ? `[${l.code}] ` : \"\";\n    const preis = l.summe === null ? \"Preis offen\" : `${l.menge} × ${money(l.einzel)} = ${money(l.summe)}`;\n    return `- ${code}${l.leistung}: ${preis}`;\n  });\n  const t = totals(lines, settings.ustSatz);\n  rows.push(\"\", `Netto: ${money(t.netto)}`, `USt ${settings.ustSatz} %: ${money(t.ust)}`, `Gesamt: ${money(t.brutto)}`);\n  if (t.offen) rows.push(`Achtung: ${t.offen} Position(en) ohne Preis, bitte ergänzen.`);\n  return rows.join(\"\\n\");\n}\n\nfunction medList(meds) {\n  return meds.map((m) => `- ${[m.name, m.dosis, m.anwendung].filter(Boolean).join(\", \")}`).join(\"\\n\");\n}\n\nfunction buildDocuments(report, settings, prices, date = new Date()) {\n  const r = report;\n  const datum = date.toLocaleDateString(\"de-AT\");\n  const kopf = header(settings);\n  const halter = r.patient.halter ? `Tierhalter/in: ${r.patient.halter}\\n` : \"\";\n  const leistungen = resolvePositions(r.leistungen, prices);\n  const unterschrift = settings.tierarztName ? `\\n\\n${settings.tierarztName}` : \"\";\n\n  const docs = {};\n\n  docs.bericht = [\n    `Datum: ${datum}`,\n    `Patient: ${signalement(r.patient)}`,\n    halter.trim(),\n    \"\",\n    `S – Subjektiv:\\n${r.soap.subjektiv || \"–\"}`,\n    `O – Objektiv:\\n${r.soap.objektiv || \"–\"}`,\n    `A – Assessment:\\n${r.soap.assessment || \"–\"}`,\n    `P – Plan:\\n${r.soap.plan || \"–\"}`,\n    r.diagnosen.length ? `Diagnosen:\\n${r.diagnosen.map((d) => `- ${d}`).join(\"\\n\")}` : \"\",\n    r.medikamente.length ? `Medikamente:\\n${medList(r.medikamente)}` : \"\",\n  ]\n    .filter((s) => s !== \"\")\n    .join(\"\\n\\n\");\n\n  docs.besitzerinfo = [\n    kopf,\n    `Informationen zur Behandlung von ${r.patient.name || \"Ihrem Tier\"} am ${datum}`,\n    r.besitzer_info,\n    r.medikamente.length ? `Ihre Medikamente:\\n${medList(r.medikamente)}` : \"\",\n    r.erinnerungen.length ? `Nächste Termine:\\n${r.erinnerungen.map((e) => `- ${e.anlass}: ${e.wann}`).join(\"\\n\")}` : \"\",\n    unterschrift.trim(),\n  ]\n    .filter(Boolean)\n    .join(\"\\n\\n\");\n\n  docs.rechnung = [\n    kopf,\n    `RECHNUNGSENTWURF – ${datum}`,\n    `${halter}Patient: ${signalement(r.patient)}`,\n    leistungen.length ? positionTable(leistungen, settings) : \"Keine Leistungen erkannt.\",\n  ]\n    .filter(Boolean)\n    .join(\"\\n\\n\");\n\n  if (r.kostenvoranschlag.erforderlich) {\n    const kv = resolvePositions(r.kostenvoranschlag.positionen, prices);\n    docs.kostenvoranschlag = [\n      kopf,\n      `KOSTENVORANSCHLAG – ${datum}`,\n      `${halter}Patient: ${signalement(r.patient)}`,\n      `Anlass: ${r.kostenvoranschlag.anlass}`,\n      kv.length ? positionTable(kv, settings) : \"Positionen bitte ergänzen.\",\n      r.kostenvoranschlag.hinweis ? `Hinweis: ${r.kostenvoranschlag.hinweis}` : \"\",\n      \"Dieser Kostenvoranschlag ist unverbindlich. Abweichungen sind je nach Befund möglich.\",\n      unterschrift.trim(),\n    ]\n      .filter(Boolean)\n      .join(\"\\n\\n\");\n  }\n\n  docs.versicherung = [\n    kopf,\n    `Behandlungsbestätigung für die Tierkrankenversicherung – ${datum}`,\n    `${halter}Patient: ${signalement(r.patient)}`,\n    `Diagnose:\\n${r.versicherung.diagnose_klartext || r.diagnosen.join(\", \") || \"–\"}`,\n    `Durchgeführte Behandlung:\\n${r.versicherung.behandlung_klartext || \"–\"}`,\n    leistungen.length ? `Abgerechnete Leistungen:\\n${positionTable(leistungen, settings)}` : \"\",\n    unterschrift.trim(),\n  ]\n    .filter(Boolean)\n    .join(\"\\n\\n\");\n\n  if (r.ueberweisung.erforderlich) {\n    docs.ueberweisung = [\n      kopf,\n      `An: ${r.ueberweisung.empfaenger || \"(Empfänger ergänzen)\"}`,\n      `Überweisung – ${datum}`,\n      `Patient: ${signalement(r.patient)}`,\n      `Fragestellung: ${r.ueberweisung.fragestellung || \"–\"}`,\n      r.ueberweisung.brief,\n      unterschrift.trim(),\n    ]\n      .filter(Boolean)\n      .join(\"\\n\\n\");\n  }\n\n  if (r.erinnerungen.length) {\n    docs.erinnerung = r.erinnerungen\n      .map((e) => `- ${r.patient.name || \"Patient\"}: ${e.anlass} – ${e.wann}`)\n      .join(\"\\n\");\n  }\n\n  return docs;\n}\n\n\nconst response = $input.first().json;\nconst prep = $('Eingabe prüfen').first().json;\n\nif (response.stop_reason === \"refusal\") {\n  return [{ json: { status: 502, body: { error: \"Die KI hat die Anfrage abgelehnt.\" } } }];\n}\nconst textBlock = (response.content || []).find((b) => b.type === \"text\");\nlet report;\ntry {\n  if (response.stop_reason === \"max_tokens\" || !textBlock) throw new Error(\"incomplete\");\n  report = JSON.parse(textBlock.text);\n} catch {\n  return [{ json: { status: 502, body: { error: \"Die Unterlagen konnten nicht vollständig erstellt werden.\" } } }];\n}\n\nconst documents = buildDocuments(report, prep.settings, prep.prices);\nreturn [{\n  json: {\n    status: 200,\n    body: { report, settings: prep.settings, prices: prep.prices, documents, pruefliste: report.pruefliste },\n  },\n}];\n"
+      },
+      "id": "2e38f036-187b-7814-d549-cf93231b95a1",
+      "name": "7 Dokumente bauen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fehler der Claude API in eine verständliche Antwort übersetzen.\nconst err = $input.first().json.error;\nconst text = typeof err === \"string\" ? err : JSON.stringify(err || {});\nconst status = Number((err && (err.httpCode || err.status)) || (text.match(/\\b(4\\d\\d|5\\d\\d)\\b/) || [])[1] || 0);\nlet message = \"Die KI ist gerade nicht erreichbar. Bitte nochmal versuchen.\";\nif (status === 401) message = \"API-Key fehlt oder ist ungültig (Zugangsdaten im Knoten 'Claude API' prüfen).\";\nif (status === 429) message = \"Gerade zu viele Anfragen. Bitte gleich nochmal versuchen.\";\nreturn [{ json: { status: 502, body: { error: message } } }];\n"
+      },
+      "id": "fdc8b571-48a4-8149-da83-29829cf94f19",
+      "name": "API-Fehler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "responseCode": "={{ $json.status }}"
+        }
+      },
+      "id": "eb3183e7-8f45-b424-0058-6323b4d32725",
+      "name": "Antwort Unterlagen",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vetscribe/freigabe",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "22e0d3c8-3382-7e2a-353e-4779e37d4ab0",
+      "name": "Freigabe",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        420
+      ],
+      "webhookId": "d7fb505d-8505-37c7-0ae1-87ae05d3eb68"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Freigabe protokollieren: wer, wann, welche Dokumente, geändert ja/nein.\n// Inhalte werden nur als SHA-256-Prüfsumme gespeichert.\n// Hinweis: Workflow-Static-Data wird nur bei aktivem Workflow (Produktions-URL) gespeichert.\nconst DOC_TYPES = [\"bericht\",\"besitzerinfo\",\"rechnung\",\"kostenvoranschlag\",\"versicherung\",\"ueberweisung\",\"erinnerung\"];\nfunction sha256Hex(message) {\n  const K = [\n    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01,\n    0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,\n    0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147,\n    0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,\n    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08,\n    0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,\n    0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,\n  ];\n  const bytes = Array.from(new TextEncoder().encode(message));\n  const bitLen = bytes.length * 8;\n  bytes.push(0x80);\n  while (bytes.length % 64 !== 56) bytes.push(0);\n  for (let i = 7; i >= 0; i--) bytes.push(Math.floor(bitLen / 2 ** (i * 8)) & 0xff);\n  const H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];\n  const rotr = (x, n) => (x >>> n) | (x << (32 - n));\n  const W = new Array(64);\n  for (let off = 0; off < bytes.length; off += 64) {\n    for (let t = 0; t < 16; t++) {\n      W[t] = (bytes[off + 4 * t] << 24) | (bytes[off + 4 * t + 1] << 16) | (bytes[off + 4 * t + 2] << 8) | bytes[off + 4 * t + 3];\n    }\n    for (let t = 16; t < 64; t++) {\n      const s0 = rotr(W[t - 15], 7) ^ rotr(W[t - 15], 18) ^ (W[t - 15] >>> 3);\n      const s1 = rotr(W[t - 2], 17) ^ rotr(W[t - 2], 19) ^ (W[t - 2] >>> 10);\n      W[t] = (W[t - 16] + s0 + W[t - 7] + s1) | 0;\n    }\n    let [a, b, c, d, e, f, g, h] = H;\n    for (let t = 0; t < 64; t++) {\n      const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);\n      const t1 = (h + S1 + ((e & f) ^ (~e & g)) + K[t] + W[t]) | 0;\n      const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);\n      const t2 = (S0 + ((a & b) ^ (a & c) ^ (b & c))) | 0;\n      [h, g, f, e, d, c, b, a] = [g, f, e, (d + t1) | 0, c, b, a, (t1 + t2) | 0];\n    }\n    H[0] = (H[0] + a) | 0; H[1] = (H[1] + b) | 0; H[2] = (H[2] + c) | 0; H[3] = (H[3] + d) | 0;\n    H[4] = (H[4] + e) | 0; H[5] = (H[5] + f) | 0; H[6] = (H[6] + g) | 0; H[7] = (H[7] + h) | 0;\n  }\n  return H.map((x) => (x >>> 0).toString(16).padStart(8, \"0\")).join(\"\");\n}\n\nconst body = $input.first().json.body || {};\nconst tierarzt = typeof body.tierarzt === \"string\" ? body.tierarzt.trim() : \"\";\nconst docs = body.documents && typeof body.documents === \"object\" ? body.documents : {};\nconst fail = (error) => [{ json: { status: 400, body: { error } } }];\nif (!tierarzt) return fail(\"Bitte den Namen des freigebenden Tierarztes angeben.\");\n\nconst documents = [];\nfor (const type of DOC_TYPES) {\n  const doc = docs[type];\n  if (!doc) continue;\n  if (typeof doc.final !== \"string\" || typeof doc.draft !== \"string\") return fail(\"Dokument \" + type + \" ist unvollständig.\");\n  documents.push({ type, edited: doc.final.trim() !== doc.draft.trim(), hash: sha256Hex(doc.final) });\n}\nif (documents.length === 0) return fail(\"Keine Dokumente zur Freigabe.\");\n\nconst entry = {\n  id: $execution.id + \"-\" + Date.now(),\n  approvedAt: new Date().toISOString(),\n  tierarzt: tierarzt.slice(0, 200),\n  documents,\n};\nconst store = $getWorkflowStaticData(\"global\");\nstore.freigaben = (store.freigaben || []).concat(entry).slice(-1000);\nreturn [{ json: { status: 200, body: { approval: entry } } }];\n"
+      },
+      "id": "10a7d5e5-ca71-b353-c53a-272cfd0db0a3",
+      "name": "Freigabe protokollieren",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "responseCode": "={{ $json.status }}"
+        }
+      },
+      "id": "5dfa443d-7942-8ba6-5c8c-d0588e5663ea",
+      "name": "Antwort Freigabe",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "vetscribe/freigaben",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "f04b5145-1644-b90f-879f-34237b34e878",
+      "name": "Protokoll abrufen",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        620
+      ],
+      "webhookId": "b2f725b6-53fe-5a24-8181-160813a3fdb4"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Letzte 50 Freigaben, neueste zuerst.\nconst store = $getWorkflowStaticData(\"global\");\nconst approvals = (store.freigaben || []).slice(-50).reverse();\nreturn [{ json: { status: 200, body: { approvals } } }];\n"
+      },
+      "id": "c12b2e92-3bd6-c4ff-def9-8d242730d785",
+      "name": "Protokoll lesen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "responseCode": "={{ $json.status }}"
+        }
+      },
+      "id": "b5aa3a34-62c4-2367-1550-5e2d051a992b",
+      "name": "Antwort Protokoll",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        620
+      ]
+    }
+  ],
+  "connections": {
+    "Unterlagen anfordern": {
+      "main": [
+        [
+          {
+            "node": "Eingabe prüfen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Eingabe prüfen": {
+      "main": [
+        [
+          {
+            "node": "Eingabe ok?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Eingabe ok?": {
+      "main": [
+        [
+          {
+            "node": "Claude API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Antwort Unterlagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude API": {
+      "main": [
+        [
+          {
+            "node": "7 Dokumente bauen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "API-Fehler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "7 Dokumente bauen": {
+      "main": [
+        [
+          {
+            "node": "Antwort Unterlagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API-Fehler": {
+      "main": [
+        [
+          {
+            "node": "Antwort Unterlagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Freigabe": {
+      "main": [
+        [
+          {
+            "node": "Freigabe protokollieren",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Freigabe protokollieren": {
+      "main": [
+        [
+          {
+            "node": "Antwort Freigabe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Protokoll abrufen": {
+      "main": [
+        [
+          {
+            "node": "Protokoll lesen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Protokoll lesen": {
+      "main": [
+        [
+          {
+            "node": "Antwort Protokoll",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
